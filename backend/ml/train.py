@@ -258,7 +258,7 @@ def export_onnx(model, tok):
         input_names=["input_ids", "attention_mask"], output_names=["logits"],
         dynamic_axes={"input_ids": {0: "batch", 1: "seq"}, "attention_mask": {0: "batch", 1: "seq"},
                       "logits": {0: "batch"}},
-        opset_version=17, dynamo=False,
+        opset_version=18, dynamo=True,
     )
     quantize_dynamic(str(fp32), str(out_dir / "model_int8.onnx"), weight_type=QuantType.QInt8)
     fp32.unlink()  # keep only the small int8 graph in the repo

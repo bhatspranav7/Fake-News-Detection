@@ -97,6 +97,8 @@ LIAR is a famously hard benchmark (binary SOTA ≈ 0.70); GossipCop headlines ar
 
 `python scripts/download_data.py` fetches both from their public mirrors.
 
+📓 **[notebooks/01_data_preprocessing.ipynb](notebooks/01_data_preprocessing.ipynb)** — executed walkthrough of loading, cleaning, label binarisation, de-duplication, splits, class balance, text-length and stylistic-feature EDA, and leakage checks.
+
 ## Project structure
 
 ```
@@ -108,7 +110,8 @@ backend/
   core/       config.py
 frontend/     React + Vite + TS (Vercel)
 mcp_server/   server.py (FastMCP tools)
-scripts/      download_data.py
+scripts/      download_data.py · export_*_onnx.py · build_preprocessing_notebook.py
+notebooks/    01_data_preprocessing.ipynb (executed EDA + preprocessing)
 models/       trained artefacts + metrics.json (int8 ONNX transformer ≈ 65 MB)
 tests/        pytest (unit + API)
 docs/         ARCHITECTURE.md

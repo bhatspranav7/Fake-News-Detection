@@ -44,7 +44,7 @@ torch.onnx.export(
     model, (sample["input_ids"], sample["attention_mask"], sample["token_type_ids"]), str(fp32),
     input_names=["input_ids", "attention_mask", "token_type_ids"], output_names=["last_hidden_state"],
     dynamic_axes={k: {0: "batch", 1: "seq"} for k in ("input_ids", "attention_mask", "token_type_ids", "last_hidden_state")},
-    opset_version=17, dynamo=False,
+    opset_version=18, dynamo=True,
 )
 quantize_dynamic(str(fp32), str(OUT / "model_int8.onnx"), weight_type=QuantType.QInt8)
 fp32.unlink()

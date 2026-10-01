@@ -1,0 +1,1 @@
+{"max_len": 128, "pooling": "mean", "normalize": true, "source": "sentence-transformers/all-MiniLM-L6-v2"}
