@@ -3,7 +3,7 @@
 > **Deep-learning ensemble + LLM fact-checking agents + live web evidence**, served as a
 > streaming API with a React dashboard and an MCP server. Trained on **LIAR** and **FakeNewsNet**.
 
-**Live demo:** https://verifact-phi.vercel.app · **API docs:** `/docs` on the backend · [Architecture](docs/ARCHITECTURE.md)
+**Live demo:** https://verifact-phi.vercel.app · **API docs:** https://verifact-api-9gpf.onrender.com/docs · [Architecture](docs/ARCHITECTURE.md)
 
 ![status](https://img.shields.io/badge/status-live-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![fastapi](https://img.shields.io/badge/FastAPI-streaming-009688) ![langgraph](https://img.shields.io/badge/LangGraph-agents-7c3aed) ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
