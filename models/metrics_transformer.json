@@ -1,0 +1,43 @@
+{
+  "model": "distilbert",
+  "accuracy": 0.735881841876629,
+  "precision": 0.5631768953068592,
+  "recall": 0.7175712971481141,
+  "f1": 0.6310679611650486,
+  "roc_auc": 0.8168161185640486,
+  "confusion": [
+    [
+      1761,
+      605
+    ],
+    [
+      307,
+      780
+    ]
+  ],
+  "n": 3453,
+  "per_dataset": {
+    "gossipcop": {
+      "accuracy": 0.8197590361445783,
+      "f1": 0.6304347826086957,
+      "roc_auc": 0.8671203244704823,
+      "n": 2075
+    },
+    "liar": {
+      "accuracy": 0.599687255668491,
+      "f1": 0.6229749631811488,
+      "roc_auc": 0.6774231295904394,
+      "n": 1279
+    },
+    "politifact": {
+      "accuracy": 0.7373737373737373,
+      "f1": 0.7450980392156863,
+      "roc_auc": 0.7985880398671097,
+      "n": 99
+    }
+  },
+  "epochs": 2,
+  "base_model": "distilbert-base-uncased",
+  "train_seconds": 14400,
+  "note": "CPU fine-tune, best epoch by valid F1 (0.6826)"
+}
