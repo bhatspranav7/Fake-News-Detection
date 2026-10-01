@@ -31,6 +31,15 @@ const VERDICT_COLORS: Record<string, string> = {
   real: "#22c55e",
   uncertain: "#f59e0b",
 };
+const SHORT_LABELS: Record<string, string> = {
+  tfidf: "TF-IDF + LR",
+  tfidf_lr: "TF-IDF + LR",
+  embed: "MiniLM + XGB",
+  embed_xgb: "MiniLM + XGB",
+  transformer: "DistilBERT",
+  distilbert: "DistilBERT",
+  ensemble: "Ensemble",
+};
 const FAKE_COLOR = "#f43f5e";
 const REAL_COLOR = "#22c55e";
 
@@ -120,7 +129,7 @@ export function DashboardPage() {
   }, [models]);
 
   const compareData = modelRows.map((r) => ({
-    name: r.name.replace(" + ", "+").replace(" embeddings", ""),
+    name: SHORT_LABELS[r.key] ?? r.name,
     Accuracy: +(r.m.accuracy * 100).toFixed(1),
     F1: +(r.m.f1 * 100).toFixed(1),
     "ROC-AUC": +(r.m.roc_auc * 100).toFixed(1),
@@ -175,9 +184,9 @@ export function DashboardPage() {
             <SectionCard title="Model comparison" subtitle="Accuracy, F1 and ROC-AUC on the combined test split (%)" icon={<BarChart3 size={18} />}>
               <div className="chart">
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={compareData} margin={{ top: 8, right: 8, left: -16, bottom: 8 }}>
+                  <BarChart data={compareData} margin={{ top: 8, right: 8, left: -16, bottom: 24 }}>
                     <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fill: "#9aa3b8", fontSize: 11 }} interval={0} />
+                    <XAxis dataKey="name" tick={{ fill: "#9aa3b8", fontSize: 11 }} interval={0} angle={-18} textAnchor="end" height={48} tickMargin={6} />
                     <YAxis domain={[50, 100]} tick={{ fill: "#9aa3b8", fontSize: 11 }} />
                     <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
