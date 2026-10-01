@@ -63,4 +63,5 @@ FETCH_TIMEOUT = float(os.getenv("FETCH_TIMEOUT", "8"))
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
 LOAD_TRANSFORMER = _bool("LOAD_TRANSFORMER", True)
 LOAD_EMBED = _bool("LOAD_EMBED", True)
+ONNX_THREADS = int(os.getenv("ONNX_THREADS", "2"))
 API_KEY = os.getenv("VERIFACT_API_KEY", "")  # optional: protects mutating endpoints

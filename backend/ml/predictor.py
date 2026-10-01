@@ -23,6 +23,17 @@ MODEL_LABELS = {
 }
 
 
+def _session_options(ort):
+    """Small-footprint ONNX Runtime settings: the memory arena and pattern
+    planner pre-allocate ~30% extra RAM, which matters on a 512 MB host."""
+    so = ort.SessionOptions()
+    so.intra_op_num_threads = config.ONNX_THREADS
+    so.inter_op_num_threads = 1
+    so.enable_cpu_mem_arena = False
+    so.enable_mem_pattern = False
+    return so
+
+
 def _logit(p: np.ndarray) -> np.ndarray:
     p = np.clip(p, 1e-6, 1 - 1e-6)
     return np.log(p / (1 - p))
@@ -61,8 +72,7 @@ class Predictor:
                         import onnxruntime as ort
                         from tokenizers import Tokenizer
 
-                        so = ort.SessionOptions()
-                        so.intra_op_num_threads = 4
+                        so = _session_options(ort)
                         self.embed_onnx = ort.InferenceSession(str(onnx_dir / "model_int8.onnx"), so,
                                                                providers=["CPUExecutionProvider"])
                         self.embed_tok = Tokenizer.from_file(str(onnx_dir / "tokenizer.json"))
@@ -82,8 +92,7 @@ class Predictor:
                     import onnxruntime as ort
                     from tokenizers import Tokenizer
 
-                    so = ort.SessionOptions()
-                    so.intra_op_num_threads = 4
+                    so = _session_options(ort)
                     self.onnx = ort.InferenceSession(str(onnx_path), so, providers=["CPUExecutionProvider"])
                     self.onnx_cfg = json.loads((self.dir / "transformer_onnx" / "config.json").read_text())
                     self.tok = Tokenizer.from_file(str(self.dir / "transformer_onnx" / "tokenizer.json"))

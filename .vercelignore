@@ -1,0 +1,13 @@
+# The Vercel project only builds the SPA in frontend/.
+backend
+models
+data
+notebooks
+scripts
+tests
+mcp_server
+docs
+requirements.txt
+requirements-train.txt
+Dockerfile
+render.yaml
