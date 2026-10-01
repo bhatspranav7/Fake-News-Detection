@@ -113,12 +113,52 @@ def ingest_node(state: State) -> dict:
             "_summary": f"Received {len(text.split())} words of text"}
 
 
+def _segments(text: str, title: str | None, lead_words: int = 60, chunk_words: int = 50,
+              max_chunks: int = 8) -> list[str]:
+    """The models were trained on headlines / short statements, so long
+    articles are scored as a headline-like lead plus body chunks."""
+    words = text.split()
+    lead = " ".join(words[:lead_words])
+    if title and title.lower() not in lead.lower():
+        lead = f"{title}. {lead}"
+    segs = [lead]
+    body = words[lead_words:]
+    for i in range(0, len(body), chunk_words):
+        if len(segs) > max_chunks:
+            break
+        chunk = " ".join(body[i:i + chunk_words])
+        if len(chunk.split()) >= 8:
+            segs.append(chunk)
+    return segs
+
+
 @_node("classifier")
 def classifier_node(state: State) -> dict:
-    pred = get_predictor().predict(state["text"])
+    text = state["text"]
+    predictor = get_predictor()
+    if len(text.split()) <= 80:
+        pred = predictor.predict(text)
+        n_seg = 1
+    else:
+        segs = _segments(text, state.get("title"))
+        preds = predictor.predict_batch(segs)
+        lead, body = preds[0], preds[1:]
+        # Lead carries half the weight; body chunks share the rest.
+        def mix(key):
+            b = [p[key] for p in body]
+            return 0.5 * lead[key] + 0.5 * (sum(b) / len(b)) if b else lead[key]
+        pred = {
+            "ensemble_prob": float(mix("ensemble_prob")),
+            "models": {m: float(0.5 * lead["models"][m] + 0.5 * (sum(p["models"][m] for p in body) / len(body)))
+                       if body else float(lead["models"][m]) for m in lead["models"]},
+            "top_tokens": predictor.top_tokens(" ".join(segs[:3])),
+            "style_flags": lead["style_flags"],
+        }
+        n_seg = len(segs)
     p = pred["ensemble_prob"]
     return {"ml": pred,
-            "_summary": f"Ensemble fake-probability {p:.0%} across {len(pred['models'])} model(s)",
+            "_summary": f"Ensemble fake-probability {p:.0%} across {len(pred['models'])} model(s)"
+                        + (f", {n_seg} text segments" if n_seg > 1 else ""),
             "_payload": {"ensemble_prob": p, "models": pred["models"]}}
 
 
