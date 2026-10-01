@@ -3,7 +3,7 @@
 > **Deep-learning ensemble + LLM fact-checking agents + live web evidence**, served as a
 > streaming API with a React dashboard and an MCP server. Trained on **LIAR** and **FakeNewsNet**.
 
-**Live demo:** _frontend URL_ · **API docs:** _backend URL_/docs · [Architecture](docs/ARCHITECTURE.md)
+**Live demo:** https://verifact-phi.vercel.app · **API docs:** `/docs` on the backend · [Architecture](docs/ARCHITECTURE.md)
 
 ![status](https://img.shields.io/badge/status-live-brightgreen) ![python](https://img.shields.io/badge/python-3.11%2B-blue) ![fastapi](https://img.shields.io/badge/FastAPI-streaming-009688) ![langgraph](https://img.shields.io/badge/LangGraph-agents-7c3aed) ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
@@ -82,10 +82,10 @@ flowchart LR
 |---|---|---|---|
 | TF-IDF + Logistic Regression | 0.724 | 0.584 | 0.785 |
 | MiniLM embeddings + style → XGBoost | 0.741 | 0.592 | 0.791 |
-| DistilBERT (fine-tuned) | _see Dashboard_ | | |
-| **Stacked ensemble** | **_see Dashboard_** | | |
+| DistilBERT (fine-tuned) | _training — see Dashboard_ | | |
+| **Stacked ensemble (TF-IDF + MiniLM)** | **0.757** | 0.576 | **0.812** |
 
-Per-dataset breakdowns and confusion matrices: `GET /metrics/models` or the Dashboard.
+Per-dataset (ensemble): GossipCop 0.842 · PolitiFact 0.707 · LIAR 0.622 accuracy. Full breakdown, confusion matrix and calibration: 📓 [notebooks/02_model_training_and_evaluation.ipynb](notebooks/02_model_training_and_evaluation.ipynb), `GET /metrics/models`, or the Dashboard.
 LIAR is a famously hard benchmark (binary SOTA ≈ 0.70); GossipCop headlines are easier (~0.85).
 
 ## Datasets
