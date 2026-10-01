@@ -82,10 +82,10 @@ flowchart LR
 |---|---|---|---|
 | TF-IDF + Logistic Regression | 0.724 | 0.584 | 0.785 |
 | MiniLM embeddings + style → XGBoost | 0.741 | 0.592 | 0.791 |
-| DistilBERT (fine-tuned) | _training — see Dashboard_ | | |
-| **Stacked ensemble (TF-IDF + MiniLM)** | **0.757** | 0.576 | **0.812** |
+| DistilBERT (fine-tuned, int8 ONNX) | 0.736 | **0.631** | 0.817 |
+| **Stacked ensemble (all three)** | **0.766** | 0.596 | **0.827** |
 
-Per-dataset (ensemble): GossipCop 0.842 · PolitiFact 0.707 · LIAR 0.622 accuracy. Full breakdown, confusion matrix and calibration: 📓 [notebooks/02_model_training_and_evaluation.ipynb](notebooks/02_model_training_and_evaluation.ipynb), `GET /metrics/models`, or the Dashboard.
+Per-dataset (ensemble): GossipCop 0.845 · PolitiFact 0.687 · LIAR 0.644 accuracy. Full breakdown, confusion matrix and calibration: 📓 [notebooks/02_model_training_and_evaluation.ipynb](notebooks/02_model_training_and_evaluation.ipynb), `GET /metrics/models`, or the Dashboard.
 LIAR is a famously hard benchmark (binary SOTA ≈ 0.70); GossipCop headlines are easier (~0.85).
 
 ## Datasets
