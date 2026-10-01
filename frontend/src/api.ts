@@ -14,6 +14,9 @@ export const API_URL: string = (
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000"
 ).replace(/\/+$/, "");
 
+// ngrok's free tier serves an HTML warning page (without CORS headers) unless this header is present.
+const TUNNEL_HEADERS: Record<string, string> = API_URL.includes("ngrok") ? { "ngrok-skip-browser-warning": "1" } : {};
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -40,7 +43,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_URL}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      headers: { "Content-Type": "application/json", ...TUNNEL_HEADERS, ...(init?.headers ?? {}) },
     });
   } catch (err) {
     throw new ApiError(
@@ -106,7 +109,7 @@ export async function analyzeStream(
   try {
     res = await fetch(`${API_URL}/analyze/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...TUNNEL_HEADERS },
       body: JSON.stringify(body),
       signal,
     });
