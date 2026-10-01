@@ -33,3 +33,6 @@ frontend/.vercel/
 .claude/
 .vercel/
 app.db
+
+# model preds / embedding caches
+models/preds/
