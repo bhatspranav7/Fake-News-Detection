@@ -36,3 +36,7 @@ app.db
 
 # model preds / embedding caches
 models/preds/
+
+# exporter side-files
+*.onnx.data
+models/*/model_fp32.onnx

@@ -261,7 +261,7 @@ def export_onnx(model, tok):
         opset_version=18, dynamo=True,
     )
     quantize_dynamic(str(fp32), str(out_dir / "model_int8.onnx"), weight_type=QuantType.QInt8)
-    fp32.unlink()  # keep only the small int8 graph in the repo
+    fp32.unlink(); (out_dir / "model_fp32.onnx.data").unlink(missing_ok=True)  # keep only int8
     (out_dir / "config.json").write_text(json.dumps({"max_len": MAX_LEN, "labels": ["real", "fake"]}))
     print("onnx int8 ->", out_dir / "model_int8.onnx",
           f"{(out_dir / 'model_int8.onnx').stat().st_size/1e6:.1f} MB")

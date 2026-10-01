@@ -47,7 +47,7 @@ torch.onnx.export(
     opset_version=18, dynamo=True,
 )
 quantize_dynamic(str(fp32), str(OUT / "model_int8.onnx"), weight_type=QuantType.QInt8)
-fp32.unlink()
+fp32.unlink(); (OUT / "model_fp32.onnx.data").unlink(missing_ok=True)
 (OUT / "config.json").write_text(json.dumps({"max_len": MAX_LEN, "pooling": "mean", "normalize": True,
                                              "source": MODEL}))
 
