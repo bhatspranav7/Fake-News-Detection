@@ -163,9 +163,48 @@ def classifier_node(state: State) -> dict:
 
 
 CLAIM_SYS = ("You are a fact-checking assistant. Extract the most important, concrete, "
-             "checkable factual claims from the article. Skip opinions and vague statements. "
-             "Keep each claim self-contained (include names, numbers, dates).")
-CLAIM_SCHEMA = '{"claims": ["claim 1", "claim 2"], "summary": "one-sentence summary of the article"}'
+             "checkable factual claims from the article. Skip opinions, insults and vague statements "
+             "(e.g. 'doctors are furious' is not checkable). Keep each claim self-contained (include "
+             "names, numbers, dates). For each claim also write the short keyword query a fact-checker "
+             "would type into a search engine: 3-7 specific words (entities, numbers, the alleged effect), "
+             "no filler like 'scientists confirm', 'breaking', 'reportedly'.")
+CLAIM_SCHEMA = ('{"claims": [{"claim": "full claim sentence", "search_query": "3-7 keyword query"}], '
+                '"summary": "one-sentence summary of the article"}')
+
+GENERIC_WORDS = {
+    "breaking", "scientists", "scientist", "experts", "expert", "doctors", "doctor", "confirm",
+    "confirms", "confirmed", "reveal", "reveals", "revealed", "report", "reports", "reported",
+    "says", "said", "say", "claims", "claim", "sources", "source", "officials", "official",
+    "furious", "shocking", "shocked", "finally", "just", "new", "study", "studies", "according",
+    "want", "know", "every", "morning", "within", "really", "truth", "exposed", "secret",
+}
+STOPWORDS = {
+    "a", "an", "the", "and", "or", "but", "of", "to", "in", "on", "at", "for", "with", "by", "from",
+    "that", "this", "these", "those", "is", "are", "was", "were", "be", "been", "being", "it", "its",
+    "as", "if", "than", "then", "so", "do", "does", "did", "not", "no", "don't", "doesn't", "didn't",
+    "has", "have", "had", "will", "would", "can", "could", "should", "may", "might", "you", "your",
+    "we", "our", "they", "their", "he", "she", "his", "her", "who", "what", "which", "about", "into",
+    "over", "after", "before", "up", "out", "all", "any", "some", "more", "most", "very", "also",
+}
+
+
+def keyword_query(claim: str, max_words: int = 7) -> str:
+    """Strip filler so the search engine sees the entities and the alleged
+    effect ('lemon water cures cancer 30 days'), not 'scientists confirm'."""
+    import re
+
+    words = [w.rstrip(".") for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9'.\-]*", claim)]
+    kept = [w for w in words if w.lower() not in STOPWORDS and w.lower() not in GENERIC_WORDS]
+    # Prefer capitalised entities and numbers, then the rest, preserving order.
+    priority = [w for w in kept if w[0].isupper() or w[0].isdigit()]
+    rest = [w for w in kept if w not in priority]
+    chosen = []
+    for w in kept:
+        if (w in priority or w in rest) and w not in chosen:
+            chosen.append(w)
+        if len(chosen) >= max_words:
+            break
+    return " ".join(chosen) if len(chosen) >= 2 else " ".join(words[:max_words])
 
 
 def _lead_claims(text: str, title: str | None) -> list[str]:
@@ -179,22 +218,32 @@ def _lead_claims(text: str, title: str | None) -> list[str]:
 
 @_node("claim_extractor")
 def claim_node(state: State) -> dict:
+    claims: list[dict] = []
     try:
         out = llm.chat_json(CLAIM_SYS, f"ARTICLE:\n{_trunc(state['text'])}\n\nReturn at most "
                             f"{config.MAX_CLAIMS} claims.", CLAIM_SCHEMA)
-        claims = [str(c).strip() for c in out.get("claims", []) if str(c).strip()][:config.MAX_CLAIMS]
+        for item in out.get("claims", [])[:config.MAX_CLAIMS]:
+            # Tolerate both the new object form and a bare string.
+            text = str(item.get("claim", "") if isinstance(item, dict) else item).strip()
+            if not text:
+                continue
+            q = str(item.get("search_query", "")).strip() if isinstance(item, dict) else ""
+            claims.append({"claim": text, "search_query": q or keyword_query(text)})
         summary = str(out.get("summary", ""))
         note = ""
     except llm.LLMError as exc:
         log.warning("claim extractor LLM failed, using lead sentences: %s", exc)
-        claims, summary, note = [], "", " (LLM timed out — using headline/lead as the claim)"
+        summary, note = "", " (LLM timed out — using headline/lead as the claim)"
     if not claims:
-        claims = _lead_claims(state["text"], state.get("title"))
-    return {"claims": [{"claim": c, "verdict": "unverified", "confidence": 0.0, "evidence": []}
-                       for c in claims],
+        claims = [{"claim": c, "search_query": keyword_query(c)}
+                  for c in _lead_claims(state["text"], state.get("title"))]
+    for c in claims:
+        c.update({"verdict": "unverified", "confidence": 0.0, "evidence": []})
+    return {"claims": claims,
             "llm_out": {"summary": summary},
             "_summary": f"Extracted {len(claims)} checkable claim(s){note}",
-            "_payload": {"claims": claims}}
+            "_payload": {"claims": [c["claim"] for c in claims],
+                         "queries": [c["search_query"] for c in claims]}}
 
 
 @_node("evidence_retriever")
@@ -204,7 +253,7 @@ def evidence_node(state: State) -> dict:
     claims = [dict(c) for c in state.get("claims", [])]
     # Search all claims concurrently; each search already fans out internally.
     with ThreadPoolExecutor(max_workers=max(1, len(claims))) as ex:
-        results = list(ex.map(lambda c: evidence.search_evidence(c["claim"]), claims))
+        results = list(ex.map(lambda c: evidence.search_evidence(c.get("search_query") or c["claim"]), claims))
     total = 0
     for c, ev in zip(claims, results):
         c["evidence"] = [{"title": e["title"], "url": e["url"], "snippet": e["snippet"],

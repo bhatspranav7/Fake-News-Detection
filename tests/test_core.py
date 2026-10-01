@@ -82,3 +82,13 @@ def test_ollama_host_normalisation():
     assert _ollama_url("0.0.0.0:11434") == "http://127.0.0.1:11434"
     assert _ollama_url("http://gpu-box:11434/") == "http://gpu-box:11434"
     assert _ollama_url("") == "http://127.0.0.1:11434"
+
+
+def test_keyword_query_strips_filler():
+    from backend.agents.graph import keyword_query
+
+    q = keyword_query("Scientists confirm that drinking lemon water every morning cures cancer within 30 days.")
+    assert "scientists" not in q.lower() and "confirm" not in q.lower()
+    assert "lemon" in q and "cancer" in q and "30" in q
+    assert "3.7" in keyword_query("The unemployment rate fell to 3.7 percent last month.")
+    assert keyword_query("a b") == "a b"  # too short to filter -> raw words
