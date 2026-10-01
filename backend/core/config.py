@@ -57,7 +57,7 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 WEB_SEARCH_ENABLED = _bool("WEB_SEARCH_ENABLED", True)
 MAX_CLAIMS = int(os.getenv("MAX_CLAIMS", "3"))
 EVIDENCE_PER_CLAIM = int(os.getenv("EVIDENCE_PER_CLAIM", "4"))
-FETCH_TIMEOUT = float(os.getenv("FETCH_TIMEOUT", "12"))
+FETCH_TIMEOUT = float(os.getenv("FETCH_TIMEOUT", "8"))
 
 # Serving
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]

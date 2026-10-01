@@ -199,10 +199,14 @@ def claim_node(state: State) -> dict:
 
 @_node("evidence_retriever")
 def evidence_node(state: State) -> dict:
+    from concurrent.futures import ThreadPoolExecutor
+
     claims = [dict(c) for c in state.get("claims", [])]
+    # Search all claims concurrently; each search already fans out internally.
+    with ThreadPoolExecutor(max_workers=max(1, len(claims))) as ex:
+        results = list(ex.map(lambda c: evidence.search_evidence(c["claim"]), claims))
     total = 0
-    for c in claims:
-        ev = evidence.search_evidence(c["claim"])
+    for c, ev in zip(claims, results):
         c["evidence"] = [{"title": e["title"], "url": e["url"], "snippet": e["snippet"],
                           "stance": "neutral", "is_fact_checker": e.get("is_fact_checker", False)}
                          for e in ev]
