@@ -29,7 +29,7 @@ def describe() -> dict[str, Any]:
     return {"provider": "ollama", "model": config.OLLAMA_MODEL}
 
 
-def available(timeout: float = 4.0) -> bool:
+def available(timeout: float = 10.0) -> bool:
     """Cheap liveness probe used by /health and to decide deep-mode fallback."""
     try:
         if config.LLM_PROVIDER == "ollama":

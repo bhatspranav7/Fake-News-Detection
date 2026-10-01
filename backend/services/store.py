@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,13 +15,13 @@ _lock = threading.Lock()
 
 def _conn() -> sqlite3.Connection:
     Path(config.DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(config.DB_PATH, check_same_thread=False)
+    c = sqlite3.connect(config.DB_PATH, check_same_thread=False, isolation_level=None)
     c.row_factory = sqlite3.Row
     return c
 
 
 def init():
-    with _lock, _conn() as c:
+    with _lock, closing(_conn()) as c:
         c.executescript("""
         CREATE TABLE IF NOT EXISTS analyses (
             id TEXT PRIMARY KEY,
@@ -46,7 +47,7 @@ def init():
 
 
 def save_analysis(result: dict):
-    with _lock, _conn() as c:
+    with _lock, closing(_conn()) as c:
         c.execute(
             "INSERT OR REPLACE INTO analyses VALUES (?,?,?,?,?,?,?,?,?,?)",
             (result["id"], result["created_at"], result["mode"], result["verdict"],
@@ -56,13 +57,13 @@ def save_analysis(result: dict):
 
 
 def get_analysis(analysis_id: str) -> dict | None:
-    with _lock, _conn() as c:
+    with _lock, closing(_conn()) as c:
         row = c.execute("SELECT payload FROM analyses WHERE id=?", (analysis_id,)).fetchone()
     return json.loads(row["payload"]) if row else None
 
 
 def history(limit: int = 20) -> list[dict]:
-    with _lock, _conn() as c:
+    with _lock, closing(_conn()) as c:
         rows = c.execute(
             "SELECT id, created_at, mode, verdict, fake_probability, confidence, domain, snippet "
             "FROM analyses ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
@@ -70,13 +71,13 @@ def history(limit: int = 20) -> list[dict]:
 
 
 def add_feedback(analysis_id: str, rating: str, comment: str | None):
-    with _lock, _conn() as c:
+    with _lock, closing(_conn()) as c:
         c.execute("INSERT INTO feedback (analysis_id, rating, comment, created_at) VALUES (?,?,?,?)",
                   (analysis_id, rating, comment, datetime.now(timezone.utc).isoformat()))
 
 
 def usage() -> dict:
-    with _lock, _conn() as c:
+    with _lock, closing(_conn()) as c:
         total = c.execute("SELECT COUNT(*) n, AVG(latency_ms) l FROM analyses").fetchone()
         verdicts = c.execute("SELECT verdict, COUNT(*) n FROM analyses GROUP BY verdict").fetchall()
         fb = c.execute("SELECT rating, COUNT(*) n FROM feedback GROUP BY rating").fetchall()

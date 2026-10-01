@@ -1,0 +1,6 @@
+# Extra packages only needed to (re)train the models.
+-r requirements.txt
+datasets>=2.20
+accelerate>=0.33
+optimum>=1.21
+pytest>=8

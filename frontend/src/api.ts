@@ -49,7 +49,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
   if (!res.ok) throw new ApiError(await parseError(res), res.status);
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError(
+      `The server at ${API_URL} returned a non-JSON response for ${path}. Check VITE_API_URL points at the VeriFact API.`,
+      res.status,
+    );
+  }
 }
 
 export const api = {

@@ -23,7 +23,27 @@ DB_PATH = Path(os.getenv("DB_PATH", DATA_DIR / "app.db"))
 
 # LLM provider: ollama (local) | groq (cloud, free tier) | openai-compatible | none
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower()
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+
+
+def _ollama_url(raw: str) -> str:
+    """OLLAMA_HOST is also the *server's* bind address (e.g. `0.0.0.0`,
+    `0.0.0.0:11434`), so normalise whatever we find into a client URL."""
+    raw = (raw or "").strip().rstrip("/")
+    if not raw:
+        return "http://127.0.0.1:11434"
+    if "://" not in raw:
+        raw = "http://" + raw
+    from urllib.parse import urlparse, urlunparse
+
+    u = urlparse(raw)
+    host = u.hostname or "127.0.0.1"
+    if host in {"0.0.0.0", "::", "[::]"}:
+        host = "127.0.0.1"
+    port = u.port or 11434
+    return urlunparse((u.scheme, f"{host}:{port}", "", "", "", ""))
+
+
+OLLAMA_HOST = _ollama_url(os.getenv("OLLAMA_HOST", ""))
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
@@ -31,7 +51,7 @@ GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "60"))
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 
 # Agents
 WEB_SEARCH_ENABLED = _bool("WEB_SEARCH_ENABLED", True)

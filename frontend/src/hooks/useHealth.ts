@@ -9,6 +9,24 @@ export interface HealthState {
   lastChecked: number | null;
 }
 
+/** Fill in any fields a partial / older backend might omit so the UI never crashes. */
+function normalizeHealth(raw: Partial<Health> | null): Health {
+  const r = raw ?? {};
+  const llm = (r.llm ?? {}) as Partial<Health["llm"]>;
+  const index = (r.index ?? {}) as Partial<Health["index"]>;
+  return {
+    status: typeof r.status === "string" ? r.status : "ok",
+    version: typeof r.version === "string" ? r.version : "?",
+    models_loaded: Array.isArray(r.models_loaded) ? r.models_loaded : [],
+    llm: {
+      provider: typeof llm.provider === "string" ? llm.provider : "unknown",
+      model: typeof llm.model === "string" ? llm.model : "unknown",
+      ok: llm.ok === true,
+    },
+    index: { analyses: typeof index.analyses === "number" ? index.analyses : 0 },
+  };
+}
+
 /** Polls GET /health on an interval (default 30s). */
 export function useHealth(intervalMs = 30_000): HealthState {
   const [state, setState] = useState<HealthState>({
@@ -26,8 +44,9 @@ export function useHealth(intervalMs = 30_000): HealthState {
       controller?.abort();
       controller = new AbortController();
       try {
-        const h = await api.health(controller.signal);
+        const raw = (await api.health(controller.signal)) as Partial<Health> | null;
         if (!cancelled) {
+          const h = normalizeHealth(raw);
           setState({ health: h, online: h.status === "ok", checking: false, lastChecked: Date.now() });
         }
       } catch {
