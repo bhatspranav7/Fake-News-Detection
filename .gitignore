@@ -1,0 +1,35 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# data (download with scripts/download_data.py)
+data/raw/
+data/processed/*.parquet
+data/processed/*.csv
+
+# training artefacts not meant for the repo
+models/checkpoints/
+models/transformer_hf/
+runs/
+*.log
+
+# node
+node_modules/
+frontend/dist/
+frontend/.vercel/
+
+# misc
+.DS_Store
+.claude/
+.vercel/
+app.db
