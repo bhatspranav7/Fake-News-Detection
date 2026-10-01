@@ -36,6 +36,9 @@ class Predictor:
         self.tfidf = None
         self.embed = None
         self.st_model = None
+        self.embed_onnx = None
+        self.embed_tok = None
+        self.embed_cfg = None
         self.onnx = None
         self.tok = None
         self.onnx_cfg = None
@@ -51,10 +54,25 @@ class Predictor:
                 self.tfidf = joblib.load(self.dir / "tfidf_lr.joblib")
             if config.LOAD_EMBED and (self.dir / "embed_xgb.joblib").exists():
                 try:
-                    from sentence_transformers import SentenceTransformer
-
                     self.embed = joblib.load(self.dir / "embed_xgb.joblib")
-                    self.st_model = SentenceTransformer(self.embed["embed_model"], device="cpu")
+                    onnx_dir = self.dir / "embed_onnx"
+                    if (onnx_dir / "model_int8.onnx").exists():
+                        # Preferred: int8 ONNX encoder, no torch needed at serving time.
+                        import onnxruntime as ort
+                        from tokenizers import Tokenizer
+
+                        so = ort.SessionOptions()
+                        so.intra_op_num_threads = 4
+                        self.embed_onnx = ort.InferenceSession(str(onnx_dir / "model_int8.onnx"), so,
+                                                               providers=["CPUExecutionProvider"])
+                        self.embed_tok = Tokenizer.from_file(str(onnx_dir / "tokenizer.json"))
+                        self.embed_cfg = json.loads((onnx_dir / "config.json").read_text())
+                        self.embed_tok.enable_truncation(self.embed_cfg["max_len"])
+                        self.embed_tok.enable_padding()
+                    else:
+                        from sentence_transformers import SentenceTransformer
+
+                        self.st_model = SentenceTransformer(self.embed["embed_model"], device="cpu")
                 except Exception as exc:  # noqa: BLE001
                     log.warning("embed model unavailable: %s", exc)
                     self.embed = None
@@ -62,13 +80,15 @@ class Predictor:
             if config.LOAD_TRANSFORMER and onnx_path.exists():
                 try:
                     import onnxruntime as ort
-                    from transformers import AutoTokenizer
+                    from tokenizers import Tokenizer
 
                     so = ort.SessionOptions()
                     so.intra_op_num_threads = 4
                     self.onnx = ort.InferenceSession(str(onnx_path), so, providers=["CPUExecutionProvider"])
-                    self.tok = AutoTokenizer.from_pretrained(self.dir / "transformer_onnx")
                     self.onnx_cfg = json.loads((self.dir / "transformer_onnx" / "config.json").read_text())
+                    self.tok = Tokenizer.from_file(str(self.dir / "transformer_onnx" / "tokenizer.json"))
+                    self.tok.enable_truncation(self.onnx_cfg["max_len"])
+                    self.tok.enable_padding()
                 except Exception as exc:  # noqa: BLE001
                     log.warning("transformer unavailable: %s", exc)
                     self.onnx = None
@@ -96,17 +116,37 @@ class Predictor:
     def _p_tfidf(self, texts):
         return self.tfidf.predict_proba(texts)[:, 1]
 
-    def _p_embed(self, texts):
-        emb = self.st_model.encode(list(texts), batch_size=64, normalize_embeddings=True,
+    @staticmethod
+    def _encode(tok, texts, with_types: bool):
+        encs = tok.encode_batch(list(texts))
+        ids = np.array([e.ids for e in encs], dtype=np.int64)
+        mask = np.array([e.attention_mask for e in encs], dtype=np.int64)
+        feed = {"input_ids": ids, "attention_mask": mask}
+        if with_types:
+            feed["token_type_ids"] = np.array([e.type_ids for e in encs], dtype=np.int64)
+        return feed
+
+    def _embed_texts(self, texts) -> np.ndarray:
+        if self.embed_onnx is not None:
+            out = []
+            for i in range(0, len(texts), 64):
+                feed = self._encode(self.embed_tok, texts[i:i + 64], with_types=True)
+                hidden = self.embed_onnx.run(None, feed)[0]
+                mask = feed["attention_mask"][..., None].astype(np.float32)
+                emb = (hidden * mask).sum(1) / np.maximum(mask.sum(1), 1e-9)  # mean pooling
+                out.append(emb / np.linalg.norm(emb, axis=1, keepdims=True))
+            return np.vstack(out)
+        return self.st_model.encode(list(texts), batch_size=64, normalize_embeddings=True,
                                    show_progress_bar=False)
+
+    def _p_embed(self, texts):
+        emb = self._embed_texts(texts)
         X = self.embed["scaler"].transform(np.hstack([emb, featurize(texts)]))
         return self.embed["clf"].predict_proba(X)[:, 1]
 
     def _p_onnx(self, texts):
-        enc = self.tok(list(texts), truncation=True, max_length=self.onnx_cfg["max_len"],
-                       padding=True, return_tensors="np")
-        logits = self.onnx.run(["logits"], {"input_ids": enc["input_ids"].astype(np.int64),
-                                            "attention_mask": enc["attention_mask"].astype(np.int64)})[0]
+        feed = self._encode(self.tok, texts, with_types=False)
+        logits = self.onnx.run(["logits"], feed)[0]
         e = np.exp(logits - logits.max(axis=1, keepdims=True))
         return (e / e.sum(axis=1, keepdims=True))[:, 1]
 

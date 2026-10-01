@@ -218,7 +218,8 @@ def train_transformer(epochs: int = 2, batch_size: int = 32, lr: float = 3e-5):
     hf_dir = MODELS / "transformer_hf"
     model.save_pretrained(hf_dir)
     tok.save_pretrained(hf_dir)
-    export_onnx(model, tok)
+    # Reload with eager attention: the SDPA path is not traceable by the exporter.
+    export_onnx(AutoModelForSequenceClassification.from_pretrained(hf_dir, attn_implementation="eager"), tok)
 
     m = metrics(d["test"]["label"].values, np.load(PREDS / "transformer_test.npy"),
                 "distilbert", d["test"]["dataset"].values)
@@ -240,9 +241,20 @@ def export_onnx(model, tok):
     tok.save_pretrained(out_dir)
     sample = tok(["export sample"], return_tensors="pt", padding="max_length", max_length=MAX_LEN,
                  truncation=True)
+
+    class Wrapper(torch.nn.Module):
+        """Positional-arg shim: newer transformers reorder forward() kwargs."""
+
+        def __init__(self, m):
+            super().__init__()
+            self.m = m
+
+        def forward(self, input_ids, attention_mask):
+            return self.m(input_ids=input_ids, attention_mask=attention_mask).logits
+
     fp32 = out_dir / "model_fp32.onnx"
     torch.onnx.export(
-        model, (sample["input_ids"], sample["attention_mask"]), str(fp32),
+        Wrapper(model), (sample["input_ids"], sample["attention_mask"]), str(fp32),
         input_names=["input_ids", "attention_mask"], output_names=["logits"],
         dynamic_axes={"input_ids": {0: "batch", 1: "seq"}, "attention_mask": {0: "batch", 1: "seq"},
                       "logits": {0: "batch"}},

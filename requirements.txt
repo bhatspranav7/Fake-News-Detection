@@ -1,4 +1,4 @@
-# --- serving (what Render / Docker installs) ---
+# --- serving only: no torch, everything runs on onnxruntime (fits a 512 MB container) ---
 fastapi>=0.115
 uvicorn[standard]>=0.30
 pydantic>=2.7
@@ -12,9 +12,6 @@ xgboost>=2.1
 joblib>=1.4
 onnxruntime>=1.18
 tokenizers>=0.19
-transformers>=4.44
-sentence-transformers>=3.0
-torch>=2.2            # CPU wheel is fine; see Dockerfile for the slim index URL
 trafilatura>=1.9
 ddgs>=9
 langgraph>=0.2

@@ -1,6 +1,11 @@
-# Extra packages only needed to (re)train the models.
+# Training / export extras (CPU torch is enough):
+#   pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-train.txt
 -r requirements.txt
+torch>=2.2
+transformers>=4.44
+sentence-transformers>=3.0
+onnx>=1.16
 datasets>=2.20
 accelerate>=0.33
-optimum>=1.21
 pytest>=8
+httpx>=0.27

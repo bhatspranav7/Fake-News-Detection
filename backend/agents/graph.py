@@ -168,17 +168,32 @@ CLAIM_SYS = ("You are a fact-checking assistant. Extract the most important, con
 CLAIM_SCHEMA = '{"claims": ["claim 1", "claim 2"], "summary": "one-sentence summary of the article"}'
 
 
+def _lead_claims(text: str, title: str | None) -> list[str]:
+    """LLM-free fallback: the headline / first sentences are the claim."""
+    import re
+
+    sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+", text) if len(x.split()) >= 5]
+    claims = ([title] if title else []) + sents[:2]
+    return [c[:300] for c in claims][:config.MAX_CLAIMS] or [text[:300]]
+
+
 @_node("claim_extractor")
 def claim_node(state: State) -> dict:
-    out = llm.chat_json(CLAIM_SYS, f"ARTICLE:\n{_trunc(state['text'])}\n\nReturn at most "
-                        f"{config.MAX_CLAIMS} claims.", CLAIM_SCHEMA)
-    claims = [str(c).strip() for c in out.get("claims", []) if str(c).strip()][:config.MAX_CLAIMS]
+    try:
+        out = llm.chat_json(CLAIM_SYS, f"ARTICLE:\n{_trunc(state['text'])}\n\nReturn at most "
+                            f"{config.MAX_CLAIMS} claims.", CLAIM_SCHEMA)
+        claims = [str(c).strip() for c in out.get("claims", []) if str(c).strip()][:config.MAX_CLAIMS]
+        summary = str(out.get("summary", ""))
+        note = ""
+    except llm.LLMError as exc:
+        log.warning("claim extractor LLM failed, using lead sentences: %s", exc)
+        claims, summary, note = [], "", " (LLM timed out — using headline/lead as the claim)"
     if not claims:
-        claims = [state["text"][:200]]
+        claims = _lead_claims(state["text"], state.get("title"))
     return {"claims": [{"claim": c, "verdict": "unverified", "confidence": 0.0, "evidence": []}
                        for c in claims],
-            "llm_out": {"summary": str(out.get("summary", ""))},
-            "_summary": f"Extracted {len(claims)} checkable claim(s)",
+            "llm_out": {"summary": summary},
+            "_summary": f"Extracted {len(claims)} checkable claim(s){note}",
             "_payload": {"claims": claims}}
 
 
@@ -210,15 +225,57 @@ FACT_SCHEMA = ('{"claims": [{"claim": "...", "verdict": "supported|refuted|unver
                '"red_flags": ["..."], "fake_probability": 0.0, "reasoning": "2-4 sentences"}')
 
 
+REFUTE_CUES = ("false", "no evidence", "no scientific evidence", "hoax", "debunk", "myth",
+               "fabricated", "misleading", "not true", "no cure", "does not cure", "cannot cure",
+               "pants on fire", "fake", "satire", "baseless", "unfounded", "incorrect", "untrue")
+SUPPORT_CUES = ("true", "confirmed", "accurate", "correct", "verified", "official", "announced")
+
+
+def _heuristic_stance(claim: dict) -> None:
+    """Lexical stance detection used when the LLM is unavailable. Fact-checker
+    sites carry more weight; a refuting fact-check marks the claim refuted."""
+    refutes = supports = 0
+    for e in claim["evidence"]:
+        text = f"{e['title']} {e['snippet']}".lower()
+        r = sum(text.count(c) for c in REFUTE_CUES)
+        sup = sum(text.count(c) for c in SUPPORT_CUES)
+        w = 2 if e.get("is_fact_checker") else 1
+        if r > sup:
+            e["stance"] = "refutes"; refutes += w
+        elif sup > r and sup >= 2:
+            e["stance"] = "supports"; supports += w
+        else:
+            e["stance"] = "neutral"
+    if refutes >= 2 and refutes > supports:
+        claim["verdict"], claim["confidence"] = "refuted", min(0.85, 0.5 + 0.1 * refutes)
+    elif supports >= 3 and supports > refutes:
+        claim["verdict"], claim["confidence"] = "supported", min(0.7, 0.4 + 0.1 * supports)
+    else:
+        claim["verdict"], claim["confidence"] = "unverified", 0.3
+
+
 @_node("fact_checker")
 def fact_node(state: State) -> dict:
     claims = [dict(c) for c in state.get("claims", [])]
+    if not state.get("llm_ok", False):
+        raise llm.LLMError("LLM unavailable")
     packet = [{"claim": c["claim"],
                "evidence": [{"i": i, "source": e["url"], "title": e["title"], "snippet": e["snippet"]}
                             for i, e in enumerate(c["evidence"])]} for c in claims]
     user = (f"ARTICLE (truncated):\n{_trunc(state['text'], 2500)}\n\n"
             f"CLAIMS WITH EVIDENCE:\n{json.dumps(packet, ensure_ascii=False)}")
-    out = llm.chat_json(FACT_SYS, user, FACT_SCHEMA)
+    try:
+        out = llm.chat_json(FACT_SYS, user, FACT_SCHEMA)
+    except llm.LLMError as exc:
+        log.warning("fact checker LLM failed, using heuristic stances: %s", exc)
+        for c in claims:
+            _heuristic_stance(c)
+        refuted = sum(c["verdict"] == "refuted" for c in claims)
+        supported = sum(c["verdict"] == "supported" for c in claims)
+        return {"claims": claims,
+                "_summary": f"LLM timed out — heuristic evidence check: {supported} supported, "
+                            f"{refuted} refuted, {len(claims) - supported - refuted} unverified",
+                "_payload": {"fallback": "heuristic", "refuted": refuted, "supported": supported}}
     by_claim = {str(c.get("claim", "")).strip(): c for c in out.get("claims", [])}
     for idx, c in enumerate(claims):
         r = by_claim.get(c["claim"]) or (out.get("claims") or [{}])[idx] if idx < len(out.get("claims") or []) else {}
